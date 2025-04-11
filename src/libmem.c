@@ -86,17 +86,22 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   }
 
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
+  struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
+  if (!cur_vma) {
+    pthread_mutex_unlock(&mmvm_lock);
+    return -1;
+  }
 
   /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
   /*Attempt to increate limit to get space */
   //struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
 
 
-  //int inc_sz = PAGING_PAGE_ALIGNSZ(size);
+  int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   //int inc_limit_ret;
 
   /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
-  //int old_sbrk = cur_vma->sbrk;
+  int old_sbrk = cur_vma->sbrk;
 
   /* TODO INCREASE THE LIMIT as inovking systemcall
    * sys_memap with SYSMEM_INC_OP
@@ -105,16 +110,44 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   //regs.a1 = ...
   //regs.a2 = ...
   //regs.a3 = ...
+  struct sc_regs regs;
+  regs.a1 = (int)cur_vma; // Pass the VMA
+  regs.a2 = inc_sz;       // Size to increase
+  regs.a3 = SYSMEM_INC_OP;
 
   /* SYSCALL 17 sys_memmap */
+  if (syscall(caller,17, &regs) < 0) {
+    pthread_mutex_unlock(&mmvm_lock);
+    return -1;
+  }
 
   /* TODO: commit the limit increment */
 
   /* TODO: commit the allocation address
   // *alloc_addr = ...
   */
+ if(!inc_vma_limit(caller, vmaid, inc_sz)){
+    
+    // update vm_freerg_list
+    if(inc_sz > size){
+      struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
+      newrg->rg_start = old_sbrk + size;
+      newrg->rg_end   = old_sbrk + inc_sz;
+      enlist_vm_freerg_list(caller->mm, newrg);
+    }
+    cur_vma->sbrk += inc_sz;
+    // printf("########## sbrk: %ld\n", cur_vma->sbrk);
+    /*Successful increase limit */
+    caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
+    caller->mm->symrgtbl[rgid].rg_end   = old_sbrk + size;
+    *alloc_addr = old_sbrk;
 
-  return 0;
+    pthread_mutex_unlock(&mmvm_lock);
+    return 0;
+  }
+  pthread_mutex_unlock(&mmvm_lock);
+  return -1;
+
 }
 
 /*__free - remove a region memory
