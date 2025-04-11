@@ -136,11 +136,16 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
     return -1;
 
   /* TODO: Manage the collect freed region to freerg_list */
+  struct vm_rg_struct *region = &caller->mm->symrgtbl[rgid];
 
+  if (region->rg_start == 0 && region->rg_end == 0)
+    return -1;
 
   /*enlist the obsoleted memory region */
   //enlist_vm_freerg_list();
   enlist_vm_freerg_list(caller->mm, &caller->mm->symrgtbl[rgid]);
+  region->rg_start = 0;
+  region->rg_end = 0;
 
   return 0;
 }
@@ -225,8 +230,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     regs.a2 = vicfpn;         // Source frame (RAM)
     regs.a3 = swpfpn;         // Destination frame (SWAP)
     /* SYSCALL 17 sys_memmap */
-    if (syscall(SYSCALL_17, ®s) != 0)
-      return -1;
+    
     /* TODO copy target frame form swap to mem 
      * SWP(tgtfpn <--> vicfpn)
      * SYSCALL 17 sys_memmap
@@ -241,8 +245,6 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
    regs.a2 = tgtfpn;         // Source frame (SWAP)
    regs.a3 = vicfpn;         // Destination frame (RAM)
     /* SYSCALL 17 sys_memmap */
-    if (syscall(SYSCALL_17, ®s) != 0)
-    return -1;
     /* Update page table */
     //pte_set_swap() 
     //mm->pgd;
