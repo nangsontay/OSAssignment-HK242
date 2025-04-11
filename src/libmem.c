@@ -140,6 +140,7 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
 
   /*enlist the obsoleted memory region */
   //enlist_vm_freerg_list();
+  enlist_vm_freerg_list(caller->mm, &caller->mm->symrgtbl[rgid]);
 
   return 0;
 }
