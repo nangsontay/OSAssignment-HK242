@@ -80,15 +80,12 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
 
     *alloc_addr = rgnode.rg_start;
-
-    pthread_mutex_unlock(&mmvm_lock);
     return 0;
   }
 
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
   struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
   if (!cur_vma) {
-    pthread_mutex_unlock(&mmvm_lock);
     return -1;
   }
 
@@ -116,9 +113,9 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   regs.a3 = SYSMEM_INC_OP;
 
   /* SYSCALL 17 sys_memmap */
-  if (syscall(caller,17, &regs) < 0) {
-    pthread_mutex_unlock(&mmvm_lock);
-    return -1;
+  if(sys_memmap(caller, 17, &regs) != 0)
+  {
+    return -1; 
   }
 
   /* TODO: commit the limit increment */
@@ -126,28 +123,29 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   /* TODO: commit the allocation address
   // *alloc_addr = ...
   */
- if(!inc_vma_limit(caller, vmaid, inc_sz)){
-    
-    // update vm_freerg_list
-    if(inc_sz > size){
-      struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
-      newrg->rg_start = old_sbrk + size;
-      newrg->rg_end   = old_sbrk + inc_sz;
-      enlist_vm_freerg_list(caller->mm, newrg);
+  cur_vma->vm_end += inc_sz;
+
+  if(inc_sz > size){
+    struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
+    if(newrg == NULL){
+      cur_vma->vm_end -= inc_sz; // go back
+      return -1;
     }
-    cur_vma->sbrk += inc_sz;
-    // printf("########## sbrk: %ld\n", cur_vma->sbrk);
-    /*Successful increase limit */
-    caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
-    caller->mm->symrgtbl[rgid].rg_end   = old_sbrk + size;
-    *alloc_addr = old_sbrk;
 
-    pthread_mutex_unlock(&mmvm_lock);
-    return 0;
+    newrg->rg_start = old_sbrk + size;
+    newrg->rg_end   = old_sbrk + inc_sz;
+    newrg->rg_next  = NULL;
+    enlist_vm_freerg_list(caller->mm, &newrg);
   }
-  pthread_mutex_unlock(&mmvm_lock);
-  return -1;
 
+  cur_vma->sbrk += inc_sz;
+  // printf("########## sbrk: %ld\n", cur_vma->sbrk);
+    /*Successful increase limit */
+  caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
+  caller->mm->symrgtbl[rgid].rg_end   = old_sbrk + size;
+  *alloc_addr = old_sbrk;
+
+  return 0;
 }
 
 /*__free - remove a region memory
@@ -281,7 +279,7 @@ int pg_getpage(struct mm_struct *mm, int pgn, int *fpn, struct pcb_t *caller)
     /* Update page table */
     //pte_set_swap() 
     //mm->pgd;
-    pte_set_swap(&mm->pgd[vicpgn], swpfpn);
+    pte_set_swap(&mm->pgd[vicpgn], 0, swpfpn);
     /* Update its online status of the target page */
     //pte_set_fpn() &
     //mm->pgd[pgn];
