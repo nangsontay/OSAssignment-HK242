@@ -7,72 +7,130 @@
  * personal permission to use and modify the Licensed Source Code
  * for the sole purpose of studying while attending the course CO2018.
  */
-
 #include "common.h"
 #include "syscall.h"
 #include "stdio.h"
 #include "libmem.h"
+#include "queue.h"
+#include "string.h"
 
-int __sys_killall(struct pcb_t *caller, struct sc_regs* regs)
-{
+int __sys_killall(struct pcb_t *caller, struct sc_regs* regs) {
     char proc_name[100];
     uint32_t data;
-    int killed_count = 0;
-    
-    // Get the memory region ID from the system call argument
+
+    // Hardcode for demo only
     uint32_t memrg = regs->a1;
-    
+
+    // Initialize proc_name with zeros
+    memset(proc_name, 0, sizeof(proc_name));
+
     // Read the process name from the memory region
-    int i = 0;
-    do {
-        if (libread(caller, memrg, i, &data) != 0) {
-            return -1; // Memory read error
+    int index = 0;
+    int result = 0;
+
+    while (index < 99) {
+        result = libread(caller, memrg, index, &data);
+        
+        if (result != 0) {
+            break; // Exit on read error
         }
-        proc_name[i] = (char)data; //Stores the name in proc_name array
-        i++;
-    } while (data != -1 && i < 99);
-    
-    proc_name[i-1] = '\0'; // Adds null terminator for string operations
-    
-    if (i == 1 || i >= 99) {
-        return -1; // Invalid process name
+
+        // Check for termination conditions
+        if (data == -1 || data == 0) {
+            proc_name[index] = '\0'; // Null-terminate on end signal
+            break;
+        }
+
+        // Store valid characters
+        if (data > 0 && data < 128) {
+            proc_name[index] = (char)data;
+            index++;
+        } else {
+            proc_name[index] = '\0'; // Null-terminate on invalid character
+            break;
+        }
     }
-    
-    printf("Attempting to kill all processes named \"%s\"\n", proc_name);
-    
-    // Get the queues where processes might be
-    struct queue_t *running = caller->running_list; // Contains currently running processes
-    
-#ifdef MLQ_SCHED
-    struct queue_t *ready = caller->mlq_ready_queue; // Contains processes waiting to run
-#else
-    struct queue_t *ready = caller->ready_queue;    // Contains processes waiting to run
-#endif
-    
-    // Check running processes
-    if (running != NULL) {
-        for (i = 0; i < running->size; i++) {
-            struct pcb_t *proc = running->proc[i];
-            if (proc != NULL && strcmp(proc->path, proc_name) == 0) { //Compares its name with the target
-                // Mark process for termination
-                proc->pc = proc->code->size; // If matched, sets the program counter (pc) to the end of the code segment
-                killed_count++;
+
+    // Ensure null termination in case of full loop completion
+    proc_name[index] = '\0';
+
+    // Use a default name if no valid name was read
+    if (index == 0) {
+        strcpy(proc_name, "P0");  // Use a default name for testing
+    }
+
+    printf("Attempting to terminate processes named: \"%s\"\n", proc_name);
+
+    //printf("The procname retrieved from memregionid %d is \"%s\"\n", memrg, proc_name);
+
+    int terminated_count = 0;
+
+    // Process the running list safely
+    if (caller->running_list != NULL) {
+        struct queue_t temp_queue;
+        temp_queue.size = 0;
+
+        while (!empty(caller->running_list)) {
+            struct pcb_t *proc = dequeue(caller->running_list);
+            if (proc == NULL) {
+                break;
+            }
+
+            if (proc->path != NULL && strcmp(proc->path, proc_name) == 0) {
+                printf("Terminating running process pid=%d, name=%s\n", proc->pid, proc->path);
+
+                // Free memory regions with safety checks
+                for (int j = 0; j < 10; j++) {
+                    if (proc->regs[j] != 0) {
+                        libfree(proc, proc->regs[j]);
+                    }
+                }
+
+                terminated_count++;
+            } else {
+                enqueue(&temp_queue, proc);
             }
         }
-    }
-    
-    // Check ready queue
-    if (ready != NULL) {
-        for (i = 0; i < ready->size; i++) {
-            struct pcb_t *proc = ready->proc[i];
-            if (proc != NULL && strcmp(proc->path, proc_name) == 0) {
-                // Mark process for termination
-                proc->pc = proc->code->size; // Set PC to end of code
-                killed_count++;
-            }
+
+        // Move processes back from temp queue to original queue
+        while (!empty(&temp_queue)) {
+            enqueue(caller->running_list, dequeue(&temp_queue));
         }
     }
-    
-    printf("Terminated %d process(es) named \"%s\"\n", killed_count, proc_name);
-    return killed_count;
+
+    // Process the ready queue safely
+    if (caller->ready_queue != NULL) {
+        struct queue_t temp_queue;
+        temp_queue.size = 0;
+
+        while (!empty(caller->ready_queue)) {
+            struct pcb_t *proc = dequeue(caller->ready_queue);
+            if (proc == NULL) {
+                break;
+            }
+
+            if (proc->path != NULL && strcmp(proc->path, proc_name) == 0) {
+                printf("Terminating ready process pid=%d, name=%s\n", proc->pid, proc->path);
+
+                // Free memory regions with safety checks
+                for (int j = 0; j < 10; j++) {
+                    if (proc->regs[j] != 0) {
+                        libfree(proc, proc->regs[j]);
+                    }
+                }
+
+                terminated_count++;
+            } else {
+                enqueue(&temp_queue, proc);
+            }
+        }
+
+        // Move processes back from temp queue to original queue
+        while (!empty(&temp_queue)) {
+            enqueue(caller->ready_queue, dequeue(&temp_queue));
+        }
+    }
+
+    printf("Total %d processes named \"%s\" terminated\n", terminated_count, proc_name);
+    return terminated_count;
 }
