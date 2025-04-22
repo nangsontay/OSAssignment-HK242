@@ -66,7 +66,7 @@ struct vm_rg_struct* get_symrg_byid(struct mm_struct* mm, int rgid)
  *@alloc_addr: address of allocated memory region
  *
  */
-int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr)
+int __alloc(struct pcb_t *caller, int vmaid, int rgid, int size, int *alloc_addr)
 {
   /*Allocate at the toproof */
   struct vm_rg_struct rgnode;
@@ -78,74 +78,69 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   {
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
-
+ 
     *alloc_addr = rgnode.rg_start;
     return 0;
   }
 
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
-  struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
-  if (!cur_vma) {
-    return -1;
-  }
-
+  // return -1;
   /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
   /*Attempt to increate limit to get space */
   //struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
+  struct vm_area_struct *cur_vma = get_vma_by_num(caller->mm, vmaid);
 
-
-  int inc_sz = PAGING_PAGE_ALIGNSZ(size);
+  //int inc_limit_ret
+  //int inc_sz = PAGING_PAGE_ALIGNSZ(size);
   //int inc_limit_ret;
+  int inc_sz = PAGING_PAGE_ALIGNSZ(size);
 
   /* TODO retrive old_sbrk if needed, current comment out due to compiler redundant warning*/
+  //int old_sbrk = cur_vma->sbrk;
   int old_sbrk = cur_vma->sbrk;
 
-  /* TODO INCREASE THE LIMIT as inovking systemcall
-   * sys_memap with SYSMEM_INC_OP
+  /* TODO INCREASE THE LIMIT as inovking systemcall 
+   * sys_memap with SYSMEM_INC_OP 
    */
   //struct sc_regs regs;
   //regs.a1 = ...
   //regs.a2 = ...
   //regs.a3 = ...
   struct sc_regs regs;
-  regs.a1 = (int)cur_vma; // Pass the VMA
-  regs.a2 = inc_sz;       // Size to increase
-  regs.a3 = SYSMEM_INC_OP;
-
+    regs.a1 = (int)cur_vma; // Pass the VMA
+    regs.a2 = inc_sz;       // Size to increase
+    regs.a3 = SYSMEM_INC_OP;
+  
   /* SYSCALL 17 sys_memmap */
-  if(sys_memmap(caller, 17, &regs) != 0)
-  {
-    return -1; 
+  if (syscall(caller,17, &regs) < 0) {
+    return -1;
   }
 
   /* TODO: commit the limit increment */
-
-  /* TODO: commit the allocation address
+  /* TODO: commit the allocation address 
   // *alloc_addr = ...
   */
-  cur_vma->vm_end += inc_sz;
 
-  if(inc_sz > size){
-    struct vm_rg_struct *newrg = malloc(sizeof(struct vm_rg_struct));
-    if(newrg == NULL){
-      cur_vma->vm_end -= inc_sz; // go back
-      return -1;
-    }
-
-    newrg->rg_start = old_sbrk + size;
-    newrg->rg_end   = old_sbrk + inc_sz;
-    newrg->rg_next  = NULL;
-    enlist_vm_freerg_list(caller->mm, &newrg);
-  }
-
-  cur_vma->sbrk += inc_sz;
-  // printf("########## sbrk: %ld\n", cur_vma->sbrk);
+    // update vm_freerg_list
+    // printf("########## sbrk: %ld\n", cur_vma->sbrk);
     /*Successful increase limit */
-  caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
-  caller->mm->symrgtbl[rgid].rg_end   = old_sbrk + size;
-  *alloc_addr = old_sbrk;
-
-  return 0;
+    if (inc_sz > size) {
+      struct vm_rg_struct *new_rgnode = malloc(sizeof(struct vm_rg_struct));
+      if (!new_rgnode) {
+        return -1; // Allocation failed
+      }
+      new_rgnode->rg_start = old_sbrk + size;
+      new_rgnode->rg_end = old_sbrk + inc_sz;
+      enlist_vm_freerg_list(caller->mm, new_rgnode); // Assumes ownership transfer
+    }
+  
+    /* Commit allocation */
+    cur_vma->sbrk += inc_sz;
+    caller->mm->symrgtbl[rgid].rg_start = old_sbrk;
+    caller->mm->symrgtbl[rgid].rg_end = old_sbrk + size;
+    *alloc_addr = old_sbrk;
+  
+    return 0;
 }
 
 /*__free - remove a region memory
