@@ -10,6 +10,8 @@ CC = gcc
 DEBUG = -g
 CFLAGS = -Wall -c $(DEBUG)
 LFLAGS = -Wall $(DEBUG)
+#for debugging only, disable in production
+
 
 vpath %.c $(SRC)
 vpath %.h $(INCLUDE)

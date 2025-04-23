@@ -102,7 +102,7 @@ int validate_overlap_vm_area(struct pcb_t* caller, int vmaid, int vmastart, int 
     // Skip checking against the same VMA we're validating
     if (vma->vm_id != vmaid)
     {
-      // Check if proposed region overlaps with existing VMA
+      // Check if a proposed region overlaps with existing VMA
       if (OVERLAP(vma->vm_start, vma->vm_end, vmastart, vmaend))
       {
         return -1; // Overlap detected
