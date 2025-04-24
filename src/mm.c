@@ -90,7 +90,7 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   int pgit = 0;
   int pgn = PAGING_PGN(addr);
 
-  /* TODO: update the rg_end and rg_start of ret_rg 
+  /* TODO: update the rg_end and rg_start of ret_rg
   //ret_rg->rg_end =  ....
   //ret_rg->rg_start = ...
   //ret_rg->vmaid = ...
@@ -106,10 +106,10 @@ int vmap_page_range(struct pcb_t *caller,           // process call
   struct framephy_struct *fpit = frames;
   for (pgit = 0; pgit < pgnum; pgit++) {
     if (fpit == NULL) break;  // No more frames to map
-    
+
     // Set PTE entry for this page
     pte_set_fpn(&caller->mm->pgd[pgn + pgit], fpit->fpn);
-    
+
     fpit = fpit->fp_next;
   }
 
@@ -132,7 +132,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
   int pgit, fpn;
   struct framephy_struct *newfp_str = malloc(sizeof(struct framephy_struct));
 
-  /* TODO: allocate the page 
+  /* TODO: allocate the page
   // caller-> ...
   // frm_lst-> ...
   */
@@ -148,7 +148,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
 
   for (pgit = 0; pgit < req_pgnum; pgit++)
   {
-  /* TODO: allocate the page 
+  /* TODO: allocate the page
    */
     if (MEMPHY_get_freefp(caller->mram, &fpn) == 0)
     {
@@ -169,7 +169,7 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
       return -3000;
     }
   }
-  *frm_lst = newfp_str->fp_next; 
+  *frm_lst = newfp_str->fp_next;
 
   return 0;
 }
@@ -264,7 +264,7 @@ int init_mm(struct mm_struct *mm, struct pcb_t *caller)
   vma0->vm_next = NULL;
 
   /* Point vma owner backward */
-  vma0->vm_mm = mm; 
+  vma0->vm_mm = mm;
 
   /* TODO: update mmap */
   //mm->mmap = ...

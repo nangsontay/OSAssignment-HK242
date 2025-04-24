@@ -50,38 +50,21 @@ int __mm_swap_page(struct pcb_t* caller, int vicfpn, int swpfpn)
  *@vmaend: vma end
  *
  */
+
 struct vm_rg_struct* get_vm_area_node_at_brk(struct pcb_t* caller, int vmaid, int size, int alignedsz)
 {
   struct vm_rg_struct* newrg = NULL;
   struct vm_area_struct* cur_vma = get_vma_by_num(caller->mm, vmaid);
-
   if (cur_vma == NULL)
   {
     return NULL;
   }
-
-  // Check if there's a free region we can reuse
-  if (cur_vma->vm_freerg_list != NULL)
-  {
-    // Reuse a region from the free list
-    newrg = cur_vma->vm_freerg_list;
-    cur_vma->vm_freerg_list = cur_vma->vm_freerg_list->rg_next;
-  }
-  else
-  {
-    // Allocate a new region if no free regions available
-    newrg = malloc(sizeof(struct vm_rg_struct));
-    if (newrg == NULL)
-    {
-      return NULL;
-    }
-  }
+  newrg = malloc(sizeof(struct vm_rg_struct));
 
   // Set the region boundaries based on the current break point
   newrg->rg_start = cur_vma->sbrk;
   newrg->rg_end = newrg->rg_start + alignedsz;
   newrg->rg_next = NULL;
-
   return newrg;
 }
 
@@ -110,7 +93,10 @@ int validate_overlap_vm_area(struct pcb_t* caller, int vmaid, int vmastart, int 
     }
     vma = vma->vm_next;
   }
-
+  if (vma == NULL)
+  {
+    return -1; // No VMA found
+  }
   return 0; // No overlap found
 }
 
@@ -123,11 +109,6 @@ int validate_overlap_vm_area(struct pcb_t* caller, int vmaid, int vmastart, int 
 int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
 {
   struct vm_rg_struct* newrg = malloc(sizeof(struct vm_rg_struct));
-  if (newrg == NULL)
-  {
-    return -1; // Out of memory
-  }
-
   int inc_amt = PAGING_PAGE_ALIGNSZ(inc_sz);
   int incnumpage = inc_amt / PAGING_PAGESZ;
   struct vm_area_struct* cur_vma = get_vma_by_num(caller->mm, vmaid);
@@ -135,14 +116,14 @@ int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
   if (cur_vma == NULL)
   {
     free(newrg);
-    return -1; // Invalid VMA
+    return -1;
   }
 
   struct vm_rg_struct* area = get_vm_area_node_at_brk(caller, vmaid, inc_sz, inc_amt);
   if (area == NULL)
   {
     free(newrg);
-    return -1; // Failed to get area node
+    return -1;
   }
 
   int old_end = cur_vma->vm_end;
@@ -157,20 +138,16 @@ int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
 
   /* Update the VM area end point and break point */
   cur_vma->vm_end = area->rg_end;
-  cur_vma->sbrk = area->rg_end;
 
   if (vm_map_ram(caller, area->rg_start, area->rg_end,
                  old_end, incnumpage, newrg) < 0)
   {
     // Restore old values on failure
     cur_vma->vm_end = old_end;
-    cur_vma->sbrk = old_end;
     free(area);
     free(newrg);
     return -1; /* Map the memory to MEMRAM */
   }
-
-  free(area); // Clean up as vm_map_ram has copied the data we need
   return 0;
 }
 
