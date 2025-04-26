@@ -39,8 +39,11 @@ int enlist_vm_freerg_list(struct mm_struct* mm, struct vm_rg_struct* rg_elmt)
   if (rg_elmt->rg_start >= rg_elmt->rg_end)
   {
     unlock_mm();
+#ifdef VMDBG
     printf("BUG: trying to free invalid region [%lu, %lu)\n",
            rg_elmt->rg_start, rg_elmt->rg_end);
+#endif
+
     return -1;
   }
 
@@ -458,17 +461,26 @@ int free_pcb_memph(struct pcb_t* caller)
 int find_victim_page(struct mm_struct* mm, int* retpgn)
 {
   lock_mm();
+  struct pgn_t* prev_pg = NULL;
   struct pgn_t* pg = mm->fifo_pgn;
   if (pg == NULL)
   {
     unlock_mm();
     return -1;
   }
+  //traverse to end of list
+  while (pg->pg_next)
+  {
+    prev_pg = pg;
+    pg = pg->pg_next;
+  }
 
   /* TODO: Implement the theorical mechanism to find the victim page */
   // FIFO so the retrieved page is the first one
   *retpgn = pg->pgn;
-  mm->fifo_pgn = pg->pg_next;
+  //remove last page
+  if (prev_pg) prev_pg->pg_next = NULL;
+  else mm->fifo_pgn = NULL;
   unlock_mm();
   return 0;
 }
