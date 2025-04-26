@@ -59,9 +59,9 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs) {
         strcpy(proc_name, "P0");  // Use a default name for testing
     }
 
-    printf("Attempting to terminate processes named: \"%s\"\n", proc_name);
+    // printf("Attempting to terminate processes named: \"%s\"\n", proc_name);
 
-    //printf("The procname retrieved from memregionid %d is \"%s\"\n", memrg, proc_name);
+    printf("The procname retrieved from memregionid %d is \"%s\"\n", memrg, proc_name);
 
     int terminated_count = 0;
 
@@ -80,11 +80,11 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs) {
                 printf("Terminating running process pid=%d, name=%s\n", proc->pid, proc->path);
 
                 // Free memory regions with safety checks
-                for (int j = 0; j < 10; j++) {
-                    if (proc->regs[j] != 0) {
-                        libfree(proc, proc->regs[j]);
-                    }
-                }
+                // for (int j = 0; j < 10; j++) {
+                //     if (proc->regs[j] != 0) {
+                //         libfree(proc, proc->regs[j]);
+                //     }
+                // }
 
                 terminated_count++;
             } else {
@@ -113,11 +113,11 @@ int __sys_killall(struct pcb_t *caller, struct sc_regs* regs) {
                 printf("Terminating ready process pid=%d, name=%s\n", proc->pid, proc->path);
 
                 // Free memory regions with safety checks
-                for (int j = 0; j < 10; j++) {
-                    if (proc->regs[j] != 0) {
-                        libfree(proc, proc->regs[j]);
-                    }
-                }
+                // for (int j = 0; j < 10; j++) {
+                //     if (proc->regs[j] != 0) {
+                //         libfree(proc, proc->regs[j]);
+                //     }
+                // }
 
                 terminated_count++;
             } else {
