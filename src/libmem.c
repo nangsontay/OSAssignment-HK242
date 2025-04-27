@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
-
 /*
  *NOTE: Only use mutex for touching mm struct,
  *such as mm->mmap->vm_freerg_list, mm->symrgtbl, mm->fifo_pgn,etc.
@@ -23,6 +22,8 @@
  */
 #define lock_mm()    do { pthread_mutex_lock(&mmvm_lock); } while (0)
 #define unlock_mm()  do { pthread_mutex_unlock(&mmvm_lock); } while (0)
+// #define lock_mm() printf("lock_mm disabled to debug\n")
+// #define unlock_mm() printf("unlock_mm disabled to debug\n")
 static pthread_mutex_t mmvm_lock = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -72,12 +73,14 @@ struct vm_rg_struct* get_symrg_byid(struct mm_struct* mm, int rgid)
 
 int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr)
 {
+  // printf("alloc: %d\n", size);
   struct vm_rg_struct rgnode;
   //no need lock here
   /* TODO: commit the vmaid */
   if (get_free_vmrg_area(caller, vmaid, size, &rgnode) == 0)
   {
     lock_mm();
+    // printf("get_free_vmrg_area OK\n");
     caller->mm->symrgtbl[rgid].rg_start = rgnode.rg_start;
     caller->mm->symrgtbl[rgid].rg_end = rgnode.rg_end;
     *alloc_addr = rgnode.rg_start;
@@ -91,7 +94,7 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   }
   lock_mm();
   /* TODO get_free_vmrg_area FAILED handle the region management (Fig.6)*/
-
+  // printf("get_free_vmrg_area FAILED\n");
   /* TODO retrive current vma if needed, current comment out due to compiler redundant warning*/
   struct vm_area_struct* cur_vma = get_vma_by_num(caller->mm, vmaid);
 
@@ -101,7 +104,7 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
 
 
   int inc_sz = PAGING_PAGE_ALIGNSZ(size);
-
+  unlock_mm();
   struct sc_regs regs;
   regs.a1 = SYSMEM_INC_OP;
   regs.a2 = vmaid;
@@ -113,9 +116,11 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
     printf("Error: Syscall 17 failed\n");
     return -1;
   }
+  lock_mm();
   /* TODO: commit the limit increment */
   //add the new region to the free list
   struct vm_area_struct* cur = get_vma_by_num(caller->mm, vmaid);
+
   enlist_vm_rg_node(&cur->vm_freerg_list,
                     init_vm_rg(old_sbrk, old_sbrk + inc_sz));
   unlock_mm();
@@ -143,13 +148,11 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
 {
   lock_mm();
   struct vm_rg_struct* rgnode = get_symrg_byid(caller->mm, rgid);
-  struct vm_area_struct* cur_vma = get_vma_by_num(caller->mm, vmaid);
-  if (rgnode == NULL || cur_vma == NULL)
+  if (rgid < 0 || rgid >= PAGING_MAX_SYMTBL_SZ)
   {
     unlock_mm();
     return -1;
   }
-
   // Dummy initialization for avoding compiler dummay warning
   // in incompleted TODO code rgnode will overwrite through implementing
   // the manipulation of rgid later
@@ -157,8 +160,9 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
   // freerg->rg_start = rgnode->rg_start;
   // freerg->rg_end = rgnode->rg_end;
   // freerg->rg_next = NULL;
+  struct vm_rg_struct* freerg = init_vm_rg(rgnode->rg_start, rgnode->rg_end);
   unlock_mm();
-  if (enlist_vm_freerg_list(caller->mm, rgnode) < 0)
+  if (enlist_vm_freerg_list(caller->mm, freerg) < 0)
   {
 #ifdef VMDBG
     printf("===== PHYSICAL MEMORY DEALLOCATION FAILED =====\n");
@@ -494,6 +498,7 @@ int find_victim_page(struct mm_struct* mm, int* retpgn)
  */
 int get_free_vmrg_area(struct pcb_t* caller, int vmaid, int size, struct vm_rg_struct* newrg)
 {
+  // printf("get_free_vmrg_area: %d\n", size);
   lock_mm();
   struct vm_area_struct* cur_vma = get_vma_by_num(caller->mm, vmaid);
 

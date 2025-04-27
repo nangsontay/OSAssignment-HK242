@@ -26,8 +26,8 @@ static int curr_slot;
 
 int queue_empty(void)
 {
-#ifdef MLQ_SCHED
 	lock_queue();
+#ifdef MLQ_SCHED
 	for (int i = 0; i < MAX_PRIO; i++)
 		if (!empty(&mlq_ready_queue[i]))
 		{
@@ -135,6 +135,9 @@ void put_proc(struct pcb_t* proc)
 	proc->ready_queue = &ready_queue;
 	proc->mlq_ready_queue = mlq_ready_queue;
 	proc->running_list = &running_list;
+	lock_queue();
+	enqueue(&running_list, proc);
+	unlock_queue();
 	put_mlq_proc(proc);
 }
 
@@ -143,6 +146,9 @@ void add_proc(struct pcb_t* proc)
 	proc->ready_queue = &ready_queue;
 	proc->mlq_ready_queue = mlq_ready_queue;
 	proc->running_list = &running_list;
+	lock_queue();
+	enqueue(&running_list, proc);
+	unlock_queue();
 	add_mlq_proc(proc);
 }
 #else
