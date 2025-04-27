@@ -83,7 +83,7 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
     *alloc_addr = rgnode.rg_start;
 #ifdef VMDBG
     printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
-    printf("PID=%d - Region=%d - Address=%08d - Size=%d byte\n", caller->pid, rgid, *alloc_addr, size);
+    printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", caller->pid, rgid, *alloc_addr, size);
     print_pgtbl(caller, 0, -1);
 #endif
     unlock_mm();
@@ -133,7 +133,7 @@ int __alloc(struct pcb_t* caller, int vmaid, int rgid, int size, int* alloc_addr
   *alloc_addr = rgnode.rg_start;
 #ifdef VMDBG
   printf("===== PHYSICAL MEMORY AFTER ALLOCATION =====\n");
-  printf("PID=%d - Region=%d - Address=%08d - Size=%d byte\n", caller->pid, rgid, *alloc_addr, size);
+  printf("PID=%d - Region=%d - Address=%08x - Size=%d byte\n", caller->pid, rgid, *alloc_addr, size);
   print_pgtbl(caller, 0, -1);
 #endif
   return 0;
@@ -476,7 +476,7 @@ int find_victim_page(struct mm_struct* mm, int* retpgn)
   }
 
   /* TODO: Implement the theorical mechanism to find the victim page */
-  // FIFO so the retrieved page is the first one
+  // FIFO so the retrieved page is the last one
   *retpgn = pg->pgn;
   //remove last page
   if (prev_pg) prev_pg->pg_next = NULL;
@@ -527,6 +527,7 @@ int get_free_vmrg_area(struct pcb_t* caller, int vmaid, int size, struct vm_rg_s
   }
   newrg->rg_start = rgit->rg_start;
   newrg->rg_end = newrg->rg_start + size;
+  rgit->rg_start = newrg->rg_end;
   unlock_mm();
   return 0;
 }
