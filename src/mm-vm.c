@@ -106,7 +106,7 @@ int validate_overlap_vm_area(struct pcb_t* caller, int vmaid, int vmastart, int 
 
 int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
 {
-  struct vm_rg_struct* newrg = malloc(sizeof(struct vm_rg_struct));
+  // struct vm_rg_struct* newrg;
   int inc_amt = PAGING_PAGE_ALIGNSZ(inc_sz);
   int incnumpage = inc_amt / PAGING_PAGESZ;
   struct vm_rg_struct* area = get_vm_area_node_at_brk(caller, vmaid, inc_sz, inc_amt);
@@ -114,7 +114,6 @@ int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
 
   if (!area || !cur_vma)
   {
-    free(newrg);
     free(area);
     printf("ERROR: Failed to get VM area node or current VMA\n"); //debug
     return -1;
@@ -131,20 +130,17 @@ int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
   cur_vma->sbrk = area->rg_end;
 
   if (vm_map_ram(caller, area->rg_start, area->rg_end,
-                 old_end, incnumpage, newrg) < 0)
+                 old_end, incnumpage, area) < 0)
   {
     cur_vma->vm_end = old_end;
     cur_vma->sbrk = old_end;
-    free(newrg);
     free(area);
     printf("ERROR: Failed to map memory to RAM\n"); //debug
     return -1; /* Map the memory to MEMRAM */
   }
   free(area);
-  free(newrg);
   return 0;
 }
-
 
 // int inc_vma_limit(struct pcb_t* caller, int vmaid, int inc_sz)
 // {
