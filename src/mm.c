@@ -156,16 +156,10 @@ int alloc_pages_range(struct pcb_t* caller, int req_pgnum, struct framephy_struc
     {
       newfp_str = (struct framephy_struct*)malloc(sizeof(struct framephy_struct));
       newfp_str->fpn = fpn;
-      newfp_str->fp_next = NULL;
-      if (*frm_lst == NULL)
-      {
-        *frm_lst = newfp_str;
-      }
-      else
-      {
-        prevfp_str->fp_next = newfp_str;
-      }
-      prevfp_str = newfp_str;
+
+      //push to head, this is LIFO
+      newfp_str->fp_next = *frm_lst;
+      *frm_lst = newfp_str;
     }
     else
     {
@@ -412,7 +406,7 @@ int print_pgtbl(struct pcb_t* caller, uint32_t start, uint32_t end)
   }
   for (pgit = pgn_start; pgit < pgn_end; pgit++)
   {
-    printf("Page Number: %d -> Frame Number: %0x\n", pgit, caller->mm->pgd[pgit]);
+    printf("Page Number: %d -> Frame Number: %0x\n", pgit, PAGING_PTE_FPN(caller->mm->pgd[pgit]));
   }
   printf("================================================================\n");
   return 0;
