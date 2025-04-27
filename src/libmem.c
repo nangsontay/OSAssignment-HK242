@@ -148,7 +148,7 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
 {
   lock_mm();
   struct vm_rg_struct* rgnode = get_symrg_byid(caller->mm, rgid);
-  if (rgid < 0 || rgid >= PAGING_MAX_SYMTBL_SZ)
+  if (rgid < 0 || rgid >= PAGING_MAX_SYMTBL_SZ || rgnode == NULL )
   {
     unlock_mm();
     return -1;
@@ -160,9 +160,13 @@ int __free(struct pcb_t* caller, int vmaid, int rgid)
   // freerg->rg_start = rgnode->rg_start;
   // freerg->rg_end = rgnode->rg_end;
   // freerg->rg_next = NULL;
-  struct vm_rg_struct* freerg = init_vm_rg(rgnode->rg_start, rgnode->rg_end);
+  struct vm_rg_struct freerg;
+  freerg.rg_start = rgnode->rg_start;
+  freerg.rg_end = rgnode->rg_end;
+  freerg.rg_next = NULL;
+  
   unlock_mm();
-  if (enlist_vm_freerg_list(caller->mm, freerg) < 0)
+  if (enlist_vm_freerg_list(caller->mm, &freerg) < 0)
   {
 #ifdef VMDBG
     printf("===== PHYSICAL MEMORY DEALLOCATION FAILED =====\n");
