@@ -9,9 +9,8 @@
 #define unlock_queue()  do { pthread_mutex_unlock(&queue_lock); } while (0)
 
 static struct queue_t ready_queue;
-static struct queue_t run_queue; //OBSOLETED
-static pthread_mutex_t queue_lock;
-
+// static struct queue_t run_queue; //OBSOLETED
+static pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
 static struct queue_t running_list;
 
 
