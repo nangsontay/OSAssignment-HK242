@@ -4,7 +4,70 @@
 #include "libmem.h"
 #include "queue.h"
 #include "string.h"
+//
 
+/* Memory region validation based on your system's memory management */
+static int vaild_useraddr(struct pcb_t* proc, uint32_t addr, size_t size)
+{
+    // Basic checks to prevent integer overflow
+    if (size == 0 || addr + size < addr)
+    {
+        return 0;
+    }
+
+    // Check if the memory region is registered for the process
+    // This assumes your libread/libwrite functions already handle valid memory regions
+    uint32_t test_data;
+    if (libread(proc, addr, 0, &test_data) != 0)
+    {
+        return 0;
+    }
+
+    return 1;
+}
+
+static int copy_from_user(struct pcb_t* proc, void* kernel_dst, uint32_t user_src, size_t size)
+{
+    if (!vaild_useraddr(proc, user_src, size))
+    {
+        return -1;
+    }
+
+    uint32_t data;
+    char* dst = (char*)kernel_dst;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        if (libread(proc, user_src, i, &data) != 0)
+        {
+            return -1;
+        }
+        dst[i] = (char)data;
+    }
+    return 0;
+}
+
+static int copy_to_user(struct pcb_t* proc, uint32_t user_dst, const void* kernel_src, size_t size)
+{
+    if (!vaild_useraddr(proc, user_dst, size))
+    {
+        return -1;
+    }
+
+    const char* src = (const char*)kernel_src;
+
+    for (size_t i = 0; i < size; i++)
+    {
+        if (libwrite(proc, user_dst, i, (uint32_t)src[i]) != 0)
+        {
+            return -1;
+        }
+    }
+    return 0;
+}
+
+
+//
 int __sys_killall(struct pcb_t* caller, struct sc_regs* regs)
 {
     char proc_name[100];
@@ -20,7 +83,15 @@ int __sys_killall(struct pcb_t* caller, struct sc_regs* regs)
     memset(proc_name, 0, sizeof(proc_name));
 
     // Read first few bytes directly and print for debugging
-    int valid_chars = 0;
+    // int valid_chars = 0;
+
+    if (copy_from_user(caller, proc_name, memrg, sizeof(proc_name) - 1) != 0)
+    {
+        printf("Error: Failed to copy process name from user space\n");
+        return -1;
+    }
+
+    /* // NOT SAFE
     for (int i = 0; i < 99; i++)
     {
         int result = libread(caller, memrg, i, &data);
@@ -48,17 +119,18 @@ int __sys_killall(struct pcb_t* caller, struct sc_regs* regs)
             proc_name[i] = '\0';
             break;
         }
-    }
+    } */
+
 
     // Ensure null-termination
     proc_name[99] = '\0';
 
     // If no name was read successfully, use a default name for testing
-    if (valid_chars == 0)
-    {
-        // printf("DEBUG: No valid process name read, using default 'P0' for testing\n");
-        strcpy(proc_name, "P0");
-    }
+    // if (valid_chars == 0)
+    // {
+    //     // printf("DEBUG: No valid process name read, using default 'P0' for testing\n");
+    //     strcpy(proc_name, "P0");
+    // }
 
     printf("The procname retrieved from memregionid %d is \"%s\"\n", memrg, proc_name);
 
